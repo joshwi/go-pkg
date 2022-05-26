@@ -2,54 +2,29 @@ package parser
 
 import (
 	"encoding/json"
-	"regexp"
 
 	"github.com/joshwi/go-pkg/utils"
 )
 
-func Init(name string, file string) (utils.Config, error) {
-
-	config := utils.Config{Id: utils.Tag{}, Parser: []utils.Parser{}}
+func Init(file string, name string) (utils.Config, error) {
 
 	// Open file with parsing configurations
 	fileBytes, err := utils.Read(file)
 	if err != nil {
-		return config, err
+		return utils.Config{}, err
 	}
 
 	// Unmarshall file into []Config struct
 	var configurations map[string]utils.Config
 	json.Unmarshal(fileBytes, &configurations)
 
-	config = configurations[name]
+	// Get config by name
+	config := configurations[name]
 
 	// Compile parser config into regexp
-	config.Parser = Compile(config.Parser)
+	config.Compile()
 
 	return config, nil
-}
-
-func Compile(parser []utils.Parser) []utils.Parser {
-
-	// log.Println(`[ Function: Compile ] [ Start ]`)
-
-	output := []utils.Parser{}
-
-	for _, entry := range parser {
-		tags := []utils.Match{}
-		for _, n := range entry.Match {
-			r := regexp.MustCompile(n.Name)
-			exp := utils.Match{Name: n.Name, Value: *r}
-			tags = append(tags, exp)
-		}
-		parser := utils.Parser{Name: entry.Name, Match: tags}
-		output = append(output, parser)
-	}
-
-	// log.Println(`[ Function: Compile ] [ Finish ]`)
-
-	return output
-
 }
 
 func Collect(text string, parsers []utils.Parser) utils.Collection {
