@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -34,6 +35,35 @@ func Scan(directory string) ([]string, error) {
 	}
 
 	return output, nil
+}
+
+func Copy(source string, target string) error {
+	srcFile, err := os.Open(source)
+	defer srcFile.Close()
+
+	_, err = os.Stat(target)
+	if os.IsNotExist(err) {
+		// Creates any directories in the path that don't exist
+		err = os.MkdirAll(path.Dir(target), 0755)
+		if err != nil {
+			logger.Logger.Error().Str("source", source).Str("destination", target).Str("status", "Failed").Err(err).Msg("Copy")
+			return err
+		}
+	}
+
+	destFile, err := os.Create(target) // creates if file doesn't exist
+	defer destFile.Close()
+
+	// Move the file to new location
+	_, err = io.Copy(destFile, srcFile)
+	if err != nil {
+		logger.Logger.Error().Str("source", source).Str("destination", target).Str("status", "Failed").Err(err).Msg("Copy")
+		return err
+	}
+
+	logger.Logger.Info().Str("source", source).Str("destination", target).Str("status", "Success").Msg("Copy")
+
+	return nil
 }
 
 // Move a file to a new directory
