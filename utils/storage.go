@@ -1,20 +1,19 @@
 package utils
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/joshwi/go-pkg/logger"
 )
-
-var write_validation_1 = regexp.MustCompile(`^(\/[a-zA-Z0-9\-\_]{1,20})+$`)
-var write_validation_2 = regexp.MustCompile(`^[a-zA-Z0-9\-\_]{0,20}\.(csv|txt|json)$`)
-var eof_validation = regexp.MustCompile(`(?i)(\/[a-zA-Z0-9\-\_]+\.\w+$)`)
 
 //Scan a directory for files and subfolders
 func Scan(directory string) ([]string, error) {
@@ -46,7 +45,7 @@ func Copy(source string, target string) error {
 		// Creates any directories in the path that don't exist
 		err = os.MkdirAll(path.Dir(target), 0755)
 		if err != nil {
-			logger.Logger.Error().Str("source", source).Str("destination", target).Str("status", "Failed").Err(err).Msg("Copy")
+			logger.Logger.Error().Str("source", source).Str("target", target).Str("status", "Failed").Err(err).Msg("Copy")
 			return err
 		}
 	}
@@ -57,11 +56,11 @@ func Copy(source string, target string) error {
 	// Move the file to new location
 	_, err = io.Copy(destFile, srcFile)
 	if err != nil {
-		logger.Logger.Error().Str("source", source).Str("destination", target).Str("status", "Failed").Err(err).Msg("Copy")
+		logger.Logger.Error().Str("source", source).Str("target", target).Str("status", "Failed").Err(err).Msg("Copy")
 		return err
 	}
 
-	logger.Logger.Info().Str("source", source).Str("destination", target).Str("status", "Success").Msg("Copy")
+	logger.Logger.Info().Str("source", source).Str("target", target).Str("status", "Success").Msg("Copy")
 
 	return nil
 }
@@ -75,7 +74,7 @@ func Move(source string, destination string) error {
 		// Creates any directories in the path that don't exist
 		err = os.MkdirAll(path.Dir(destination), 0755)
 		if err != nil {
-			logger.Logger.Error().Str("source", source).Str("destination", destination).Str("status", "Failed").Err(err).Msg("Move")
+			logger.Logger.Error().Str("source", source).Str("target", destination).Str("status", "Failed").Err(err).Msg("Move")
 			return err
 		}
 	}
@@ -83,11 +82,11 @@ func Move(source string, destination string) error {
 	// Move the file to new location
 	err = os.Rename(source, destination)
 	if err != nil {
-		logger.Logger.Error().Str("source", source).Str("destination", destination).Str("status", "Failed").Err(err).Msg("Move")
+		logger.Logger.Error().Str("source", source).Str("target", destination).Str("status", "Failed").Err(err).Msg("Move")
 		return err
 	}
 
-	logger.Logger.Info().Str("source", source).Str("destination", destination).Str("status", "Success").Msg("Move")
+	logger.Logger.Info().Str("source", source).Str("target", destination).Str("status", "Success").Msg("Move")
 
 	return nil
 
@@ -138,5 +137,169 @@ func Write(filename string, data []byte, mode int) error {
 	}
 
 	return nil
+
+}
+
+func Backup(source string, target string, filetypes string, subfolder string) (int, int) {
+
+	VALIDATE := regexp.MustCompile(fmt.Sprintf(`(?i)\.(%v)$`, filetypes))
+
+	selected_files := []Tag{}
+
+	start := time.Now()
+
+	filetree, err := Scan(source)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// Look through results of directory scan
+	for _, item := range filetree {
+		// Does the filetype match specified types?
+		match := VALIDATE.FindString(item)
+		if len(match) > 0 {
+			_, err = os.Stat(target + subfolder + item)
+			if os.IsNotExist(err) {
+				selected_files = append(selected_files, Tag{Name: source + item, Value: target + subfolder + item})
+			}
+		}
+	}
+
+	// Create channels for data flow and error reporting
+	files := make(chan Tag, 10)
+	errs := make(chan error)
+
+	// Input selected files into channel
+	go func() {
+		for _, entry := range selected_files {
+			files <- entry
+		}
+	}()
+
+	// Run worker to copy files from source to target
+	for i := 0; i < cap(files); i++ {
+		go func(files chan Tag, errs chan error) {
+			for item := range files {
+				err := Copy(item.Name, item.Value)
+				if err != nil {
+					errs <- err
+				}
+				errs <- nil
+			}
+		}(files, errs)
+	}
+
+	err_list := []error{}
+	counter := 0
+
+	// Count up errors
+	for range selected_files {
+		entry := <-errs
+		err_list = append(err_list, entry)
+		if entry == nil {
+			counter++
+		}
+	}
+
+	// Quick mafs
+	end := time.Now()
+	elapsed := end.Sub(start)
+	duration := fmt.Sprintf("%v", elapsed.Round(time.Second/1000))
+	percent := 0
+	if counter > 0 {
+		percent = (counter / len(err_list)) * 100
+	}
+
+	success := fmt.Sprintf("%v%%", percent)
+
+	logger.Logger.Info().Str("source", source).Str("target", target).Str("types", filetypes).Str("types", filetypes).Str("duration", duration).Str("success", success).Int("files", counter).Msg("Backup")
+
+	// Close channels
+	close(files)
+	close(errs)
+
+	return counter, len(err_list)
+
+}
+
+func Transfer(source string, target string, filetypes string, subfolder string) (int, int) {
+
+	VALIDATE := regexp.MustCompile(fmt.Sprintf(`(?i)\.(%v)$`, filetypes))
+
+	selected_files := []Tag{}
+
+	start := time.Now()
+
+	filetree, err := Scan(source)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// Look through results of directory scan
+	for _, item := range filetree {
+		// Does the filetype match specified types?
+		match := VALIDATE.FindString(item)
+		if len(match) > 0 {
+			_, err = os.Stat(target + subfolder + item)
+			if os.IsNotExist(err) {
+				selected_files = append(selected_files, Tag{Name: source + item, Value: target + subfolder + item})
+			}
+		}
+	}
+
+	// Create channels for data flow and error reporting
+	files := make(chan Tag, 10)
+	errs := make(chan error)
+
+	// Input selected files into channel
+	go func() {
+		for _, entry := range selected_files {
+			files <- entry
+		}
+	}()
+
+	// Run worker to copy files from source to target
+	for i := 0; i < cap(files); i++ {
+		go func(files chan Tag, errs chan error) {
+			for item := range files {
+				err := Move(item.Name, item.Value)
+				if err != nil {
+					errs <- err
+				}
+				errs <- nil
+			}
+		}(files, errs)
+	}
+
+	err_list := []error{}
+	counter := 0
+
+	// Count up errors
+	for range selected_files {
+		entry := <-errs
+		err_list = append(err_list, entry)
+		if entry == nil {
+			counter++
+		}
+	}
+
+	// Quick mafs
+	end := time.Now()
+	elapsed := end.Sub(start)
+	duration := fmt.Sprintf("%v", elapsed.Round(time.Second/1000))
+	percent := 0
+	if counter > 0 {
+		percent = (counter / len(err_list)) * 100
+	}
+
+	success := fmt.Sprintf("%v%%", percent)
+
+	logger.Logger.Info().Str("source", source).Str("target", target).Str("types", filetypes).Str("types", filetypes).Str("duration", duration).Str("success", success).Int("files", counter).Msg("Transfer")
+
+	// Close channels
+	close(files)
+	close(errs)
+
+	return counter, len(err_list)
 
 }
