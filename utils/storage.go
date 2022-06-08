@@ -205,9 +205,9 @@ func Backup(source string, target string, filetypes string, subfolder string) (i
 	end := time.Now()
 	elapsed := end.Sub(start)
 	duration := fmt.Sprintf("%v", elapsed.Round(time.Second/1000))
-	percent := 100
-	if counter > 0 {
-		percent = (counter / len(err_list)) * 100
+	percent := 100.0
+	if len(selected_files) > 0 {
+		percent = (float64(counter) / float64(len(selected_files))) * 100
 	}
 
 	success := fmt.Sprintf("%v%%", percent)
@@ -287,9 +287,9 @@ func Transfer(source string, target string, filetypes string, subfolder string) 
 	end := time.Now()
 	elapsed := end.Sub(start)
 	duration := fmt.Sprintf("%v", elapsed.Round(time.Second/1000))
-	percent := 100
-	if counter > 0 {
-		percent = (counter / len(err_list)) * 100
+	percent := 100.0
+	if len(selected_files) > 0 {
+		percent = (float64(counter) / float64(len(selected_files))) * 100
 	}
 
 	success := fmt.Sprintf("%v%%", percent)
