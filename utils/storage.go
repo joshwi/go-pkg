@@ -205,14 +205,14 @@ func Backup(source string, target string, filetypes string, subfolder string) (i
 	end := time.Now()
 	elapsed := end.Sub(start)
 	duration := fmt.Sprintf("%v", elapsed.Round(time.Second/1000))
-	percent := 0
+	percent := 100
 	if counter > 0 {
 		percent = (counter / len(err_list)) * 100
 	}
 
 	success := fmt.Sprintf("%v%%", percent)
 
-	logger.Logger.Info().Str("source", source).Str("target", target).Str("types", filetypes).Str("types", filetypes).Str("duration", duration).Str("success", success).Int("files", counter).Msg("Backup")
+	logger.Logger.Info().Str("source", source).Str("target", target).Str("types", filetypes).Str("types", filetypes).Str("duration", duration).Str("success", success).Int("files", counter).Int("total", len(selected_files)).Msg("Backup")
 
 	// Close channels
 	close(files)
@@ -287,14 +287,14 @@ func Transfer(source string, target string, filetypes string, subfolder string) 
 	end := time.Now()
 	elapsed := end.Sub(start)
 	duration := fmt.Sprintf("%v", elapsed.Round(time.Second/1000))
-	percent := 0
+	percent := 100
 	if counter > 0 {
 		percent = (counter / len(err_list)) * 100
 	}
 
 	success := fmt.Sprintf("%v%%", percent)
 
-	logger.Logger.Info().Str("source", source).Str("target", target).Str("types", filetypes).Str("types", filetypes).Str("duration", duration).Str("success", success).Int("files", counter).Msg("Transfer")
+	logger.Logger.Info().Str("source", source).Str("target", target).Str("types", filetypes).Str("types", filetypes).Str("duration", duration).Str("success", success).Int("files", counter).Int("total", len(selected_files)).Msg("Transfer")
 
 	// Close channels
 	close(files)
